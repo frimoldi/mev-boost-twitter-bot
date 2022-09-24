@@ -1,3 +1,4 @@
+use dotenv::dotenv;
 use serde::Deserialize;
 use std::thread::sleep;
 use std::time::Duration;
@@ -24,6 +25,8 @@ struct Payload {
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     loop {
         process_slots().await;
         sleep(Duration::from_secs(30));
@@ -32,7 +35,9 @@ async fn main() {
 
 fn fetch_last_processed_slot() -> redis::RedisResult<u32> {
     // connect to redis
-    let client = redis::Client::open("redis://127.0.0.1/")?;
+    let redis_uri = std::env::var("REDIS_URI").expect("REDIS_URI must be set.");
+
+    let client = redis::Client::open(redis_uri)?;
     let mut con = client.get_connection()?;
 
     con.get("last_processed_slot")

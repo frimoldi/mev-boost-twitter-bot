@@ -11,3 +11,10 @@ tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 redis = "0.21.5"
 dotenv = "0.15.0"
+egg-mode = { version = "0.16", features = ["rustls"], default-features = false }
+twitter-api = "0.6.0"
+reqwest-oauth1 = "0.2.2"
+oauth-client = "0.8.0"
+json = "0.12.4"
+ethers = "0.17.0"
+ethers-providers = "0.17.0"

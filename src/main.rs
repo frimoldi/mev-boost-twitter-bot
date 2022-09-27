@@ -1,27 +1,14 @@
+use crate::twitter::BigRewardTweet;
 use dotenv::dotenv;
-use serde::Deserialize;
+use ethers::{types::U256, utils::format_units};
+use redis::Commands;
 use std::thread::sleep;
 use std::time::Duration;
-
 extern crate redis;
-use redis::Commands;
 
-const FLASHBOTS_API_URL: &str =
-    "https://boost-relay.flashbots.net/relay/v1/data/bidtraces/proposer_payload_delivered";
-
-const REWARD_VALUE_THRESHOLD: u128 = 100000000000000000;
-
-#[derive(Deserialize, Debug)]
-struct Payload {
-    slot: String,
-    parent_hash: String,
-    builder_pubkey: String,
-    proposer_pubkey: String,
-    proposer_fee_recipient: String,
-    gas_used: String,
-    gas_limit: String,
-    value: String,
-}
+mod ethereum;
+mod flashbots_api;
+mod twitter;
 
 #[tokio::main]
 async fn main() {
@@ -68,47 +55,40 @@ async fn process_slots() {
 
 async fn process_slots_from(slot_from: u32) -> u32 {
     let mut last_processed_slot = slot_from;
-    let result = get_payloads().await;
 
-    match result {
+    match flashbots_api::fetch_payloads().await {
         Ok(payloads) => {
             for payload in payloads {
-                let slot: u32 = match payload.slot.parse() {
-                    Ok(v) => {
-                        if v > slot_from {
-                            v
-                        } else {
-                            continue;
+                if let (Ok(slot), Ok(value)) = (
+                    payload.slot.parse::<u32>(),
+                    U256::from_dec_str(&payload.value),
+                ) {
+                    let big_reward_min = U256::from_dec_str("100000000000000000").unwrap();
+                    if slot > slot_from && value > big_reward_min {
+                        if let Ok(Some(block)) = ethereum::get_block(&payload.block_hash).await {
+                            if let (Some(block_number), Ok(value)) =
+                                (block.number, format_units(value, "ether"))
+                            {
+                                let tweet = BigRewardTweet {
+                                    block_number: block_number.as_u32(),
+                                    value,
+                                };
+
+                                match twitter::publish_tweet(&tweet).await {
+                                    Ok(()) => println!("Tweet sent!"),
+                                    Err(_) => println!("Tweet failed"),
+                                }
+                            }
                         }
                     }
-                    Err(_) => continue,
-                };
-                let value: u128 = match payload.value.parse() {
-                    Ok(v) => v,
-                    Err(_) => continue,
-                };
 
-                if value > REWARD_VALUE_THRESHOLD {
-                    println!("Big reward! {value}");
+                    last_processed_slot = slot;
                 }
-
-                last_processed_slot = slot;
             }
         }
-        Err(_) => println!("Something went wrong :("),
+
+        Err(_) => println!("Fetch payloads: Something went wrong :("),
     }
 
     last_processed_slot
-}
-
-async fn get_payloads() -> Result<Vec<Payload>, Box<dyn std::error::Error>> {
-    let client = reqwest::Client::new();
-    let body = client
-        .get(FLASHBOTS_API_URL)
-        .send()
-        .await?
-        .json::<Vec<Payload>>()
-        .await?;
-
-    Ok(body)
 }

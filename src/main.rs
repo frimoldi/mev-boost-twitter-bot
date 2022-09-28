@@ -42,7 +42,10 @@ fn set_last_processed_slot(slot: u32) -> redis::RedisResult<u32> {
 async fn process_slots() {
     let last_processed_slot = match fetch_last_processed_slot() {
         Ok(result) => result,
-        Err(_) => 0,
+        Err(err) => {
+            println!("{}", err);
+            0
+        }
     };
 
     println!("Processing slots from {last_processed_slot} ");
@@ -51,7 +54,12 @@ async fn process_slots() {
 
     println!("Finished at slot {last_processed_slot}");
 
-    let _ = set_last_processed_slot(last_processed_slot);
+    match set_last_processed_slot(last_processed_slot) {
+        Ok(_) => {}
+        Err(err) => {
+            println!("{}", err);
+        }
+    }
 }
 
 async fn process_slots_from(slot_from: u32) -> u32 {

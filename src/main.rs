@@ -31,8 +31,9 @@ fn fetch_last_processed_slot() -> redis::RedisResult<u32> {
 }
 
 fn set_last_processed_slot(slot: u32) -> redis::RedisResult<u32> {
+    let redis_uri = std::env::var("REDIS_URI").expect("REDIS_URI must be set.");
     // connect to redis
-    let client = redis::Client::open("redis://127.0.0.1/")?;
+    let client = redis::Client::open(redis_uri)?;
     let mut con = client.get_connection()?;
 
     con.set("last_processed_slot", slot)

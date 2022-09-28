@@ -2035,6 +2035,7 @@ dependencies = [
  "async-trait",
  "combine",
  "itoa",
+ "native-tls",
  "percent-encoding",
  "ryu",
  "sha1",
